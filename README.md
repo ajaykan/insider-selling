@@ -1,1 +1,1 @@
-# Insider trading vs short term security performance
+# Insider trading and security performance
