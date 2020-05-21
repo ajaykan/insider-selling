@@ -130,10 +130,10 @@ def percent_pos(input):
     return float(positive / total)
 
 
-def percent_neg(input):
-    return 1 - percent_pos(input)
+# def percent_neg(input):
+#     return 1 - percent_pos(input)
 
 
 
 data = read_input('selling_v1.csv')
-print(percent_neg(data))
+# print(percent_neg(data))
