@@ -1,10 +1,14 @@
 # Insider trading and security performance
 
-Hypothesis:
+Goal: study historical instances of insider trading and correlate to security's subsequent performance
+
+Tools / Requirements:
 
 Assumptions:
 
+Metrics:
+
 Further study:
- - Studying causality by sector
+ - Analyze causality by sector
  - Subsets of insider trading by market cap
  - Changing time since trade to assess security performance
