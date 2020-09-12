@@ -7,6 +7,8 @@ Tools / Requirements:
  - Measure to standardized to market/sector performance
  
 Assumptions:
+ - The market/sector adjusted returns will give us a good indication of the security's output
+ - 
 
 Metrics:
  - Magnitude of insider trading relative to market cap: 10M shares traded of 1B company = roughly 1% market cap traded
