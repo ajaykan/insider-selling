@@ -14,6 +14,7 @@ Extracted instances from public dataset (ex. https://www.reddit.com/r/StockMarke
 Computed price appreciation/depreciation from time of trade to various timescales (6-24 months)
 Standardized returns to IWM (small cap) over same time period (trade return % / IWM return %) 
 - For insider selling, returns were negated to signify selling
+
 Plotted deviations to see shape of distribution
 Plotted deviation vs magnitude of trade (in dollars), to establish correlation
 
