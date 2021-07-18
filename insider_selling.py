@@ -1,130 +1,183 @@
-from requests import get
-# from bs4 import BeautifulSoup4
+import requests
+import requests_html
+import json
+import io
+import ftplib
+import feedparser
 import pandas as pd
 import datetime as dt
-import time
-from scipy import stats
-import yfinance as yf
+import statistics as stat
+import matplotlib.pyplot as plt
 import csv
+from yahoo_fin import stock_info as si
 
-# UTILITY FUNC
 
-# Returns whether input is valid trading day
-def valid_trading_day(date):
-    url = "https://bigcharts.marketwatch.com/historical/default.asp?symb=AAPL&closeDate={month}%2F{day}%2F{year}".format(month=date.month, day=date.day, year=date.year)   
-    content = get(url)
-    if (content.text.find("No data for") != -1):
-        return False
-    return True
+# CLASS
 
-# Closing price based on ticker and date
-def closing_price(ticker, date):
-    if not isinstance(date, dt.date):
-        return("Enter valid date")
-    if valid_trading_day(date):
-        date = "{year}-{month}-{day}".format(year=date.year, month=date.month, day=date.day)
-        return yf.Ticker(ticker).history(period="max").loc[date].loc["Close"]
+class Dataset: 
+
+    """
+    Populates a Dataset object with all the relevant meta data (filename, data table, buy/sell, date)
+    Contain all relevant functions for analysis
+    Allow for easy iteration of datasets
+    Following instance attributes: filename, data, buy, date
+
+    Filename structure: '(Buy/Sell)-(MM)_(DD)_(YYYY).csv' -> ex. 'Buy-01_14_2019.csv' 
+    """
+
+    def __init__(self, filename, underlying="SPY", deltas=[3, 6, 12]):
+        self.filename = filename
+        try:
+            table = pd.read_csv(self.filename)
+            self.data = table
+        except FileNotFoundError:
+            print("Invalid filename")
+        
+        temp_name = self.filename
+        temp_name = temp_name.split("-")
+        if temp_name[0].split("/")[1] == "Buy":
+            self.buy = True
+        elif temp_name[0].split("/")[1] == "Sell":
+            self.buy = False
+        else:
+            print("Invalid filename")
+
+        date = temp_name[1].removesuffix(".csv").split("_")
+        self.date = dt.date(int(date[2]), int(date[0]), int(date[1]))
+
+        self.deltas = deltas
+        self.underlying = underlying
+        self.comparison_performance = None
+
+        self.data_points = None # returns list of tuples [(avg returns, magnitude)]
+
+        # meta data
+        avg_deviation = 0
+        ratio_win_lose = 0
+
+        self.update()
+
+
+    def set_deltas(self, deltas):
+        assert(type(deltas) == list)
+        self.deltas = deltas
+
+    def set_comparison(self, ticker):
+        assert(type(ticker) == str)
+        self.underlying = ticker
+    
+    def update(self):
+        self.comparison_performance = [get_delta(self.underlying, self.date, dt.timedelta(weeks=i*4), pct=True) for i in self.deltas]
+    
+    def generate_data(self):
+        lst = []
+        for i in range(len(self.data.index)):
+            try:
+                ticker = self.data.loc[i, "Company"]
+                ticker = ticker.split("/")[0][:-1]
+
+                magnitude = self.data.loc[i, "Value Change"]
+                pct_changes = [get_delta(ticker, self.date, dt.timedelta(weeks=j*4), pct=True) for j in self.deltas]
+                standardized_returns = [round(pct_changes[i]/self.comparison_performance[i], 4) for i in range(len(self.deltas))]
+                if self.buy:
+                    lst.append((stat.mean(standardized_returns), magnitude))
+                else:
+                    lst.append((-1*stat.mean(standardized_returns), magnitude))
+            except (KeyError, AssertionError):
+                print("Error with ticker: {0}".format(ticker))
+
+        self.data_points = lst
+
+    def generate_visualization(self):
+        self.update()
+        x_val = [x[0] for x in self.data_points]
+        y_val = [y[1] for y in self.data_points]
+        plt.plot(x_val, y_val)
+        plt.show()
+
+    def avg_deviation(self):
+        self.avg_deviation = stat.mean([x[0] for x in self.data_points])
+
+    def ratio_win_lose(self):
+        total_win = sum([x[0] > 0 for x in self.data_points])
+        self.ratio_win_lose = total_win / len(self.data_points)
+
+
+    def __str__(self):
+        self.update()
+        print("---")
+        print("Insider {0}ing on {1}".format("buy" if self.buy else "sell", dateobj_to_str(self.date)))
+        print("Underlying comparator: {0}".format(self.underlying))
+        print("Deltas: {0} (months)".format(self.deltas))
+        print("Comparison performance: {0}: ".format([str(round(i, 4)*100)+"%" for i in self.comparison_performance]))
+        print("Performance Data:")
+        print("Average deviation: {0}".format(str(self.avg_deviation)))
+        print("Ratio of win/lose: {0}".format(str(self.ratio_win_lose)))
+        return "---"
+
+        
+
+# UTILITY FUNCTIONS
+
+def dateobj_to_str(date):
+    assert(type(date) == dt.date)
+    string = ""
+    if date.month < 10:
+        string += "0" + str(date.month)
     else:
-        return("Enter valid date")
-
-# Finds the nearest trading day if the given date is not valid
-def nearest_trading_day(date):
-    if valid_trading_day(date):
-        return date
-    one_day = dt.timedelta(days=1)
-    while not valid_trading_day(date):
-        date = date + one_day
-    return date
-
-# Stock price change in stock value given start date and time interval
-def price_change(ticker, start, delta):
-    nearest_start = nearest_trading_day(start)
-    nearest_end = nearest_trading_day(start + delta)
-    return int(closing_price(ticker, nearest_end) - closing_price(ticker, nearest_start))
-
-#Percent change in stock over delta
-def percent_change(ticker, start, delta):
-    nearest_start = nearest_trading_day(start)
-    nearest_end = nearest_trading_day(start + delta)
-    change = closing_price(ticker, nearest_end) - closing_price(ticker, nearest_start)
-    return (change / closing_price(ticker, nearest_start))
+        string += str(date.month)
+    string += "/"
+    if date.day < 10:
+        string += "0" + str(date.day)
+    else:
+        string += str(date.day)
+    string += "/"
+    string += str(date.year)
+    return string
 
 
-# DATASET
+def get_delta(ticker, start_date, delta, pct=True): # date is dt object, delta is dt.timedelta obj, return change in price or percent
+    assert(type(start_date) == dt.date)
+    assert(type(delta) == dt.timedelta)
+    if start_date > dt.date.today():
+        return "Invalid start date"
+    end_date = start_date + delta
+    if end_date > dt.date.today():
+        return "Invalid delta"
+
+    end_date = dateobj_to_str(end_date)
+    start_date = dateobj_to_str(start_date)
+    tbl = si.get_data(ticker, start_date=start_date, end_date=end_date, interval="1d")
+    
+    start = tbl["open"][0]
+    end = tbl["close"][-1]
+    price_change = end - start
+    if pct:
+        return price_change / start
+    else:
+        return price_change
 
 
-# First dataset of insider trading, 1/14/2019
-start2 = dt.date(2020, 3, 23)
-buying1 = pd.read_csv("Buy 1_14_19.csv")
-print(percent_change("TSLA", start2, dt.timedelta(weeks=52)))
+# DATASETS
+
+buying1 = Dataset('Data/Buy-01_14_2019.csv')
+selling1 = Dataset('Data/Sell-01_14_2019.csv')
+
+
+# WORKSPACE
+
+buying1.set_comparison("SPY")
+buying1.set_deltas([6, 12, 24])
+buying1.generate_data()
+buying1.avg_deviation()
+buying1.ratio_win_lose()
 
 print(buying1)
 
+selling1.set_comparison("SPY")
+selling1.set_deltas([6, 12, 24])
+selling1.generate_data()
+selling1.avg_deviation()
+selling1.ratio_win_lose()
 
-
-#Find insider buying/selling data from reddit, convert to pandas DataFrame
-def fetch_data(url):
-    try:
-        tables = pd.read_html(url)
-        insider_buying = tables[0]
-        insider_selling = tables[1]
-        return insider_selling
-    except:
-        return fetch_data(url)
-
-
-# Return a list with the percent change 13, 26, and 52 weeks after date
-def collect_data(ticker, start):
-    lst = []
-    time_delta = dt.timedelta(weeks=13)
-    for i in range(3):
-        change = percent_change(ticker, start, time_delta)
-        lst.append(change)
-        time_delta *= 2
-    return lst
-
-
-# Return a list of percent change standardized to market move, difference in security movement vs overall market movement
-def collect_data_std(ticker, start):
-    lst = []
-    time_delta = dt.timedelta(weeks=13)
-    for i in range(3):
-        change = percent_change(ticker, start, time_delta)
-        market = percent_change("SPY", start, time_delta)
-        lst.append(change - market)
-        time_delta *= 2
-    return lst
-
-
-
-# Checking validity of previous functions
-
-
-
-# Takes input data and returns array of tuples (insider_magnitude: security_change)
-def read_input(csv_file):
-    reader = csv.reader(open("selling_v1.csv", newline=''))
-    lst_instances = []
-    for row in reader:
-        if reader.line_num > 2:
-            lst_instances.append((float(row[1]), float(row[2])))
-    
-    return lst_instances
-
-
-def percent_pos(input):
-    positive = 0
-    total = len(input)
-    for i in input:
-        if i[1] > 0:
-            positive += 1
-    return float(positive / total)
-
-
-def percent_neg(input):
-    return 1 - percent_pos(input)
-
-
-
-# data = read_input('selling_v1.csv')
-# print(percent_neg(data))
+print(selling1)
