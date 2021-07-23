@@ -1,7 +1,7 @@
 # Insider trading and security performance
 
 **Premise**:
-Use public data involving insiders of a company buying/selling their personal holdings to assess their entry/exit timing ability. Determined strength of correlation between magnitude of insider trading and profitability of trade.
+This project describes insider trading in the strictly legal sense where an insider of a company buys or sells shares on the open market. This differs from newsworthy 'insider trading' where an insider places a trade on information not yet made public. These instances of insider trading are legal and frequent, and I hope to see if any value can be derived by studying these pattern. I use public data involving insiders of a company buying/selling their personal holdings to assess their entry/exit timing ability, and examine the strength of correlation between the magnitude of insider trading and the overall profitability of the trade.
 
 **Model assumptions:**
 Extrapolated price appreciation data on various timescales with short and medium term timescales
@@ -12,8 +12,9 @@ Discard data from securities that were delisted in the specified timeframe
 **Process**:
 Extracted instances from public dataset (ex. https://www.reddit.com/r/StockMarket/comments/afz2fw/significant_insider_trading_activity_last_7_days/)
 Computed price appreciation/depreciation from time of trade to various timescales (6-24 months)
-Standardized returns to IWM (small cap) over same time period (trade return % / IWM return %) 
+Standardized returns to SPY over same time period (trade return % / SPY return %) 
 - For insider selling, returns were negated to signify selling
+To get an aggregaate of an instance of insider trading, I took the average of the above computation accross all 2-3 timescales
 
 Plotted deviations to see shape of distribution
 Plotted deviation vs magnitude of trade (in dollars), to establish correlation
