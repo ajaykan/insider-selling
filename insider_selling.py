@@ -6,9 +6,11 @@ import ftplib
 import feedparser
 import pandas as pd
 import datetime as dt
+import time
 import statistics as stat
 import matplotlib.pyplot as plt
 import csv
+import os
 from yahoo_fin import stock_info as si
 
 
@@ -52,10 +54,8 @@ class Dataset:
         self.data_points = None # returns list of tuples [(avg returns, magnitude)]
 
         # meta data
-        avg_deviation = 0
-        ratio_win_lose = 0
-
-        self.update()
+        self.avg_deviation = 0
+        self.ratio_win_lose = 0
 
 
     def set_deltas(self, deltas):
@@ -66,42 +66,48 @@ class Dataset:
         assert(type(ticker) == str)
         self.underlying = ticker
     
-    def update(self):
-        self.comparison_performance = [get_delta(self.underlying, self.date, dt.timedelta(weeks=i*4), pct=True) for i in self.deltas]
-    
-    def generate_data(self):
+    def generate_data(self, print_errors=False):
         lst = []
         for i in range(len(self.data.index)):
             try:
                 ticker = self.data.loc[i, "Company"]
                 ticker = ticker.split("/")[0][:-1]
-
+                
                 magnitude = self.data.loc[i, "Value Change"]
                 pct_changes = [get_delta(ticker, self.date, dt.timedelta(weeks=j*4), pct=True) for j in self.deltas]
                 standardized_returns = [round(pct_changes[i]/self.comparison_performance[i], 4) for i in range(len(self.deltas))]
                 if self.buy:
-                    lst.append((stat.mean(standardized_returns), magnitude))
+                    lst.append((round(stat.mean(standardized_returns), 4), remove_commas(magnitude)))
                 else:
-                    lst.append((-1*stat.mean(standardized_returns), magnitude))
+                    lst.append((round(-1*stat.mean(standardized_returns), 4), remove_commas(magnitude)))
             except (KeyError, AssertionError):
-                print("Error with ticker: {0}".format(ticker))
+                if print_errors:
+                    print("Error with ticker: {0}".format(ticker))
 
         self.data_points = lst
 
     def generate_visualization(self):
-        self.update()
         x_val = [x[0] for x in self.data_points]
         y_val = [y[1] for y in self.data_points]
         plt.plot(x_val, y_val)
         plt.show()
 
-    def avg_deviation(self):
+    def generate_avg_deviation(self):
         self.avg_deviation = stat.mean([x[0] for x in self.data_points])
 
-    def ratio_win_lose(self):
+    def generate_ratio_win_lose(self):
         total_win = sum([x[0] > 0 for x in self.data_points])
         self.ratio_win_lose = total_win / len(self.data_points)
 
+    def update(self, timer=False, print_errors=False): # can specify whether to print time to run, errored tickers
+        start = time.time()
+        self.comparison_performance = [get_delta(self.underlying, self.date, dt.timedelta(weeks=i*4), pct=True) for i in self.deltas]
+        self.generate_data(print_errors)
+        self.generate_avg_deviation()
+        self.generate_ratio_win_lose()
+        end = time.time()
+        if timer:
+            print("Second to run: " + str(round(end-start, 2)))
 
     def __str__(self):
         self.update()
@@ -115,9 +121,13 @@ class Dataset:
         print("Ratio of win/lose: {0}".format(str(self.ratio_win_lose)))
         return "---"
 
-        
 
 # UTILITY FUNCTIONS
+
+def remove_commas(string): # remove commas from a str, returns int
+    num = string.replace(",", "")
+    return float(num)
+
 
 def dateobj_to_str(date):
     assert(type(date) == dt.date)
@@ -158,26 +168,54 @@ def get_delta(ticker, start_date, delta, pct=True): # date is dt object, delta i
         return price_change
 
 
-# DATASETS
-
-buying1 = Dataset('Data/Buy-01_14_2019.csv')
-selling1 = Dataset('Data/Sell-01_14_2019.csv')
-
-
 # WORKSPACE
 
-buying1.set_comparison("SPY")
-buying1.set_deltas([6, 12, 24])
-buying1.generate_data()
-buying1.avg_deviation()
-buying1.ratio_win_lose()
+buying1 = Dataset('Data/Buy-04_08_2020.csv')
+selling1 = Dataset('Data/Sell-10_23_2020.csv')
 
-print(buying1)
+# buying1.set_comparison("SPY")
+# buying1.set_deltas([3, 6])
+# buying1.update()
 
-selling1.set_comparison("SPY")
-selling1.set_deltas([6, 12, 24])
-selling1.generate_data()
-selling1.avg_deviation()
-selling1.ratio_win_lose()
+# print(buying1.data_points)
 
-print(selling1)
+# selling1.set_comparison("SPY")
+# selling1.set_deltas([3, 6])
+# selling1.update()
+
+# print(selling1.data_points)
+
+
+root_dir = '/Users/ajayk/Documents/Projects/Python/ULAB_insider_selling/Data'
+
+
+# PARSING THROUGH EAACH FILE IN DATA
+
+def parse_data_folder():
+    buy_data = []
+    sell_data = []
+    for subdir, dirs, files in os.walk(root_dir):
+        for file in files:
+            try:
+                x = Dataset("Data/" + file)
+                x.set_comparison("SPY")
+                if (dt.date.today() - x.date) > dt.timedelta(days=365):
+                    x.set_deltas([3, 6, 12])
+                else:
+                    x.set_deltas([3, 6])
+                x.update()
+                if x.buy:
+                    buy_data.extend(x.data_points)
+                    print("Dataset {0} added".format(file))
+                else:
+                    sell_data.extend(x.data_points)
+                    print("Dataset {0} added".format(file))
+            except:
+                print("Error on file {0}".format(file))
+    
+    return buy_data, sell_data
+
+
+buy, sell = parse_data_folder()
+
+
