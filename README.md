@@ -7,7 +7,7 @@ This project describes insider trading in the strictly legal sense where an insi
 Extrapolated price appreciation data on various timescales with short and medium term timescales
 Standardized returns to Russell 2000 over same timeframe
 Did not include dividend income over timescale
-Discard data from securities that were delisted in the specified timeframe
+Discard data from securities that were delisted in the designated timeframe
 
 **Process**:
 Extracted instances from public dataset (ex. https://www.reddit.com/r/StockMarket/comments/afz2fw/significant_insider_trading_activity_last_7_days/)
